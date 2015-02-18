@@ -1,0 +1,53 @@
+class energy_up(object):
+    
+    def __init__(self, args):
+        self.j = args[0]
+        self.S = args[1]
+        self.M = args[2]
+        self.A = args[3]
+        self.B = args[4]
+        self.NU = args[5]
+        self.seff = args[6]
+        self.ueff = args[7]
+
+    def H(self,x,u):
+        """
+        """
+        part1 = x.dot(self.S.inverse_times(x.weight(power = 0)))  / 2
+        part2 = self.j.dot(self.A * (exp(x)+exp(u)))
+        part3 = (self.A * (exp(x)+exp(u))).dot(self.M(self.A * (exp(x)+exp(u)))) / 2
+        part4 = -(self.B-1).dot(u)-self.NU.dot(exp(-u)).
+        
+        return part1 - part2 + part3 - part4
+    
+    def gradH_s(self, x,u):
+        """
+        """
+    
+        temp1 = self.S.inverse_times(x)
+        temp = -self.j * self.A * exp(x) + self.A* exp(x) * \
+            self.M(self.A * (exp(x)+exp(u))) + temp1
+    
+        return temp
+
+    def gradH_u(self, x,u):
+        """
+        """
+    
+        temp1 = self.B-1 - self.NU * exp(-u)
+        temp = -self.j * self.A * exp(u) + self.A* exp(u) * \
+            self.M(self.A * (exp(x)+exp(u))) + temp1
+    
+        return temp
+    
+    def egg_s(self, x):
+        
+        E = self.H(x,self.ueff)
+        gs = self.gradH_s(x,self.ueff)
+        return E,gs
+
+    def egg_u(self, u):
+        
+        E = self.H(self.seff,u)
+        gu = self.gradH_u(self.seff,u)        
+        return E,gu

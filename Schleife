@@ -1,0 +1,52 @@
+    mold = m #ist vorhanden
+    convergens = False     
+
+        elif params.map_algo == 'up': #use pointsource NEW up definieren
+            args = (j, S, M, rho0, B, NU,m,u)
+            en = energy_up(args) 
+            while not convergens
+                minimize = nt.steepest_descent(en.egg_s,spam=callbackfunc_m,note=True)
+                m = minimize(x0=m, alpha=numparams.map_alpha, \
+                    tol=numparams.map_tol, clevel=numparams.map_clevel, \
+                    limii=numparams.map_iter)[0]
+                en.seff = m
+                minimize = nt.steepest_descent(en.egg_u,spam=callbackfunc_u,note=True)
+                u = minimize(x0=u, alpha=numparams.map_alpha, \
+                    tol=numparams.map_tol, clevel=numparams.map_clevel, \
+                    limii=numparams.map_iter)[0]
+                en.ueff = u
+
+def callbackfunc_u(x, i):
+    
+    if i%gcallback == 0:
+        print 'Callback at iteration' + str(i) +' of the point source reconstruction'
+        
+        if gsave:
+           pl.figure()
+           pl.imshow(np.exp(x))
+           pl.colorbar()
+           pl.title('Iteration' + str(i)+'_u')
+           pl.savefig("last_iterations/" + 'iteration'+str(i)+'_u')
+           np.save("last_iterations/" + 'iteration' + str(i)+'_u',x)
+
+def callbackfunc_m(x, i):
+    
+    if i%gcallback == 0:
+        print 'Callback at iteration' + str(i) +' of the point source reconstruction'
+        
+        if gsave:
+           pl.figure()
+           pl.imshow(np.exp(x))
+           pl.colorbar()
+           pl.title('Iteration' + str(i)+'_m')
+           pl.savefig("last_iterations/" + 'iteration'+str(i)+'_m')
+           np.save("last_iterations/" + 'iteration' + str(i)+'_m',x)
+    
+# kann man konstante Werte in der steepest decent methode weglassen?
+# eigene parameter für u ?
+# ordner anlegen
+# () FUER DIE en functionenen
+# up in us ändern ?
+#schleife !
+# convergenzcriterium ?
+#  abwächselnt ! wegen der Schrittweite.
