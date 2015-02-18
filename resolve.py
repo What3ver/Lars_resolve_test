@@ -139,6 +139,10 @@ def resolve(ms, imsize, cellsize, algorithm = 'ln-map', init_type_s = 'dirty',\
     if params.save:
         if not os.path.exists('general_output'):
             os.makedirs('general_output')
+            parameter.printparameters('general_output')
+            numparams.printparameters('general_output')
+            if simulating:
+                simparams.printparameters('general_output')
         if not os.path.exists('last_iterations'):
             os.makedirs('last_iterations')
         if not os.path.exists('m_reconstructions'):
@@ -421,20 +425,49 @@ def mapfilter_I(d, m, pspec, N, R, logger, rho0, k_space, params, numparams):
 
         mold = m
         
+        #vorläufige Werte für u B und NU (für die Punktquellen), allgeimeiner und früher einfügen 
+        u = 1
+        B = 1.5
+        NU = 1
+
         if params.map_algo == 'sd':
             en = energy(args)
             minimize = nt.steepest_descent(en.egg,spam=callbackfunc,note=True)
             m = minimize(x0=m, alpha=numparams.map_alpha, \
                 tol=numparams.map_tol, clevel=numparams.map_clevel, \
                 limii=numparams.map_iter)[0]
+        elif params.map_algo == 'up': #use pointsource NEW up definieren
+            args = (j, S, M, rho0, B, NU,m,u)
+            en = energy_up(args) 
+            minimize = nt.steepest_descent(en.egg_u,spam=callbackfunc_u,note=True)
+            u = minimize(x0=u, alpha=numparams.map_alpha, \
+                tol=numparams.map_tol, clevel=numparams.map_clevel, \
+                limii=numparams.map_iter)[0]
+            en.ueff = u
+            minimize = nt.steepest_descent(en.egg_s,spam=callbackfunc_m,note=True)
+            m = minimize(x0=m, alpha=numparams.map_alpha, \
+                tol=numparams.map_tol, clevel=numparams.map_clevel, \
+                limii=numparams.map_iter)[0]
+            en.seff = m
+
         elif params.map_algo == 'lbfgs':
             logger.failure('lbfgs algorithm not yet implemented.')
-           
+            
         if params.save:
-            save_results(exp(m.val), "map, iter #" + str(git), \
-                "m_reconstructions/" + params.save + "_expm" + str(git), \
-                rho0 = rho0)
-        
+            if params.map_algo == 'sd':
+                save_results(exp(m.val), "map, iter #" + str(git), \
+                    "m_reconstructions/" + params.save + "_expm" + str(git), \
+                    rho0 = rho0)
+            elif params.map_algo == 'up':
+                save_results(exp(m.val+u.val), "map, iter #" + str(git), \
+                    "mu_reconstructions/" + params.save + "_expmu" + str(git), \
+                    rho0 = rho0)        
+                save_results(exp(m.val), "map, iter #" + str(git), \
+                    "m_reconstructions/" + params.save + "_expm" + str(git), \
+                    rho0 = rho0)
+                save_results(exp(u.val), "map, iter #" + str(git), \
+                    "u_reconstructions/" + params.save + "_expu" + str(git), \
+                    rho0 = rho0)
 
         logger.header2("Computing the power spectrum.\n")
 
@@ -679,33 +712,109 @@ class energy(object):
         
         return E,g
 
+class energy_up(object):
+    
+    def __init__(self, args):
+        self.j = args[0]
+        self.S = args[1]
+        self.M = args[2]
+        self.A = args[3]
+        self.B = args[4]
+        self.NU = args[5]
+        self.seff = args[6]
+        self.ueff = args[7]
+
+    def H(self,x,u):
+        """
+        """
+        part1 = x.dot(self.S.inverse_times(x.weight(power = 0)))  / 2
+        part2 = self.j.dot(self.A * (exp(x)+exp(u)))
+        part3 = (self.A * (exp(x)+exp(u))).dot(self.M(self.A * (exp(x)+exp(u)))) / 2
+        part4 = -(self.B-1).dot(u)-self.NU.dot(exp(-u)).
+        
+        return part1 - part2 + part3 - part4
+    
+    def gradH_s(self, x,u):
+        """
+        """
+    
+        temp1 = self.S.inverse_times(x)
+        temp = -self.j * self.A * exp(x) + self.A* exp(x) * \
+            self.M(self.A * (exp(x)+exp(u))) + temp1
+    
+        return temp
+
+    def gradH_u(self, x,u):
+        """
+        """
+    
+        temp1 = self.B-1 - self.NU * exp(-u)
+        temp = -self.j * self.A * exp(u) + self.A* exp(u) * \
+            self.M(self.A * (exp(x)+exp(u))) + temp1
+    
+        return temp
+    
+    def egg_s(self, x):
+        
+        E = self.H(x,self.ueff)
+        gs = self.gradH_s(x,self.ueff)
+        return E,gs
+
+    def egg_u(self, u):
+        
+        E = self.H(self.seff,u)
+        gu = self.gradH_u(self.seff,u)        
+        return E,gu
+
 class parameters(object):
 
     def __init__(self,ms, imsize, cellsize, algorithm, init_type_s, \
                  use_init_s, init_type_p, lastit, freq, pbeam, \
                  uncertainty, noise_est, map_algo, pspec_algo, barea,\
                  map_conv, pspec_conv, save, callback, plot):
+        
+        self.para = []
 
         self.ms = ms
+        self.para.append(['ms',str(self.ms)]) 
         self.imsize = imsize
+        self.para.append(['imsize',str(self.imsize)]) 
         self.cellsize = cellsize
+        self.para.append(['cellsize',str(self.cellsize)]) 
         self.algorithm = algorithm
-        self.init_type_s = init_type_s
+        self.para.append(['algorithm',str(self.algorithm)]) 
+        self.init_type_s = init_type_s 
+        self.para.append(['init_type_s',str(self.init_type_s)]) 
         self.use_init_s = use_init_s
+        self.para.append(['use_init_s',str(self.use_init_s)]) 
         self.init_type_p = init_type_p
+        self.para.append(['init_type_p',str(self.init_type_p)]) 
         self.lastit = lastit
+        self.para.append(['lastit',str(self.lastit)]) 
         self.freq = freq
+        self.para.append(['freq',str(self.freq)]) 
         self.pbeam = pbeam
+        self.para.append(['pbeam',str(self.pbeam)]) 
         self.uncertainty = uncertainty
+        self.para.append(['uncertainty',str(self.uncertainty)]) 
         self.noise_est = noise_est
+        self.para.append(['noise_est',str(self.noise_est)]) 
         self.map_algo = map_algo
+        self.para.append(['map_algo',str(self.map_algo)]) 
         self.pspec_algo = pspec_algo
+        self.para.append(['pspec_algo',str(self.pspec_algo)]) 
         self.barea = barea
+        self.para.append(['barea',str(self.barea)]) 
         self.save = save
+        self.para.append(['save',str(self.save)]) 
         self.map_conv = map_conv
+        self.para.append(['map_conv',str(self.map_conv)]) 
         self.pspec_conv = pspec_conv
+        self.para.append(['pspec_conv',str(self.pspec_conv)]) 
         self.callback = callback
+        self.para.append(['callback',str(self.callback)]) 
         self.plot = plot
+        self.para.append(['plot',str(self.plot)]) 
         
         # a few global parameters needed for callbackfunc
         global gcallback
@@ -713,150 +822,198 @@ class parameters(object):
         gcallback = callback
         gsave = save
 
+    def printparameters(self,place):
+     
+        f = open(place+'/resolve_parameters.txt','w')
+        for name in self.para:
+            f.write('{0:10}: {1:10}'.format(name[0],name[1]) + '\n')
+
 class numparameters(object):
     
     def __init__(self, kwargs):
+    
+        self.para = []
          
         if 'm_start' in kwargs:
             self.m_start = kwargs['m_start']
+            self.para.append(['m_start',str(self.m_start)]) 
         else: 
             self.m_start = 0.1
             
         if 'global_iter' in kwargs:
             self.global_iter = kwargs['global_iter']
+            self.para.append(['global_iter',str(self.global_iter)]) 
         else: 
             self.global_iter = 50
             
         if 'M0_start' in kwargs:
             self.M0_start = kwargs['M0_start']
+            self.para.append(['M0_start',str(self.M0_start)]) 
         else: 
             self.M0_start = 0
             
         if 'bins' in kwargs:
            self.bin = kwargs['bins']
+           self.para.append(['bin',str(self.bin)]) 
         else:
            self.bin = 70 
            
         if 'p0' in kwargs:
            self.p0 = kwargs['p0']
+           self.para.append(['p0',str(self.p0)]) 
         else:
            self.p0 = 1.   
            
         if 'alpha_prior' in kwargs:
            self.alpha_prior = kwargs['alpha_prior']
+           self.para.append(['alpha_prior',str(self.alpha_prior)]) 
         else:
            self.alpha_prior = None 
            
         if 'smoothing' in kwargs:
            self.smoothing = kwargs['smoothing']
+           self.para.append(['smoothing',str(self.smoothing)]) 
         else:
            self.smoothing = 10.
                
         if 'pspec_tol' in kwargs:
            self.pspec_tol = kwargs['pspec_tol']
+           self.para.append(['pspec_tol',str(self.pspec_tol)]) 
         else:
            self.pspec_tol = 1e-3   
            
         if 'pspec_clevel' in kwargs:
            self.pspec_clevel = kwargs['pspec_clevel']
+           self.para.append(['pspec_clevel',str(self.pspec_clevel)]) 
         else:
            self.pspec_clevel = 3
         
         if 'pspec_iter' in kwargs:
            self.pspec_iter = kwargs['pspec_iter']
+           self.para.append(['pspec_iter',str(self.pspec_iter)]) 
         else:
            self.pspec_iter = 150
            
         if 'map_alpha' in kwargs:
            self.map_alpha = kwargs['map_alpha']
+           self.para.append(['map_alpha',str(self.map_alpha)]) 
         else:
            self.map_alpha = 1e-4
            
         if 'map_tol' in kwargs:
            self.map_tol = kwargs['map_tol']
+           self.para.append(['map_tol',str(self.map_tol)]) 
         else:
            self.map_tol = 1e-5
            
         if 'map_clevel' in kwargs:
            self.map_clevel = kwargs['map_clevel']
+           self.para.append(['map_clevel',str(self.map_clevel)]) 
         else:
            self.map_clevel = 3
            
         if 'map_iter' in kwargs:
            self.map_iter = kwargs['map_iter']
+           self.para.append(['map_iter',str(self.map_iter)]) 
         else:
            self.map_iter = 100
            
         if 'ncpu' in kwargs:
            self.ncpu = kwargs['ncpu']
+           self.para.append(['ncpu',str(self.ncpu )]) 
         else:
            self.ncpu = 2
         
         if 'nrun' in kwargs:
            self.nrun = kwargs['nrun']
+           self.para.append(['nrun',str(self.nrun)]) 
         else:
            self.nrun = 8
-        
+
+    def printparameters(self):
+     
+        f = open(place+'/numparameters.txt','w')
+        for name in self.para:
+            f.write('{0:10}: {1:10}'.format(name[0],name[1]) + '\n')
+
 class simparameters(object):
     
     def __init__(self, params, kwargs):
+        
+        self.para = []
          
         if 'simpix' in kwargs:
             self.simpix = kwargs['simpix']
+            self.para.append(['simpix',str(self.simpix)]) 
         else: 
             self.simpix = 100
             
         if 'nsources' in kwargs:
             self.nsources = kwargs['nsources']
+            self.para.append(['nsources',str(self.nsources)]) 
         else: 
             self.nsources = 50
             
         if 'pfactor' in kwargs:
             self.pfactor = kwargs['pfactor']
+            self.para.append(['pfactor',str(self.pfactor)]) 
         else: 
             self.pfactor = 5.
             
         if 'signal_seed' in kwargs:
            self.signal_seed = kwargs['signal_seed']
+           self.para.append(['signal_seed',str(self.signal_seed)]) 
         else:
            self.signal_seed = 454810740
            
         if 'p0_sim' in kwargs:
            self.p0_sim = kwargs['p0_sim']
+           self.para.append(['p0_sim',str(self.p0_sim)]) 
         else:
            self.p0_sim = 9.7e-18   
            
         if 'k0' in kwargs:
            self.k0 = kwargs['k0']
+           self.para.append(['k0',str(self.k0)]) 
         else:
            self.k0 = 19099
            
         if 'sigalpha' in kwargs:
            self.sigalpha = kwargs['sigalpha']
+           self.para.append(['sigalpha',str(self.sigalpha)]) 
         else:
            self.sigalpha = 2.
                
         if 'noise_seed' in kwargs:
            self.noise_seed = kwargs['noise_seed']
+           self.para.append(['noise_seed',str(self.noise_seed)]) 
         else:
            self.noise_seed = 3127312
            
         if 'sigma' in kwargs:
            self.sigma = kwargs['sigma']
+           self.para.append(['sigma',str(self.sigma)]) 
         else:
            self.sigma = 1e-2
            
         if 'offset' in kwargs:
            self.offset = kwargs['offset']
+           self.para.append(['offset',str(self.offset)]) 
         else:
            self.offset = 0.
            
         if 'compact' in kwargs:
            self.compact = kwargs['compact']
+           self.para.append(['compact',str(self.compact)]) 
         else:
            self.compact = False
-           
-           
+
+    def printparameters(self):
+     
+        f = open(place+'/numparameters.txt','w')
+        for name in self.para:
+            f.write('{0:10}: {1:10}'.format(name[0],name[1]) + '\n')         
+
 def make_dirtyimage(params, logger):
     
 #    im.open(params.ms)
@@ -900,7 +1057,33 @@ def callbackfunc(x, i):
            pl.title('Iteration' + str(i))
            pl.savefig("last_iterations/" + 'iteration'+str(i))
            np.save("last_iterations/" + 'iteration' + str(i),x)
+
+def callbackfunc_u(x, i):
+    
+    if i%gcallback == 0:
+        print 'Callback at iteration' + str(i) +' of the point source reconstruction'
+        
+        if gsave:
+           pl.figure()
+           pl.imshow(np.exp(x))
+           pl.colorbar()
+           pl.title('Iteration' + str(i)+'_u')
+           pl.savefig("last_iterations/" + 'iteration'+str(i)+'_expu')
+           np.save("last_iterations/" + 'iteration' + str(i)+'_expu',x)
                
+def callbackfunc_m(x, i):
+    
+    if i%gcallback == 0:
+        print 'Callback at iteration' + str(i) +' of the point source reconstruction'
+        
+        if gsave:
+           pl.figure()
+           pl.imshow(np.exp(x))
+           pl.colorbar()
+           pl.title('Iteration' + str(i)+'_m')
+           pl.savefig("last_iterations/" + 'iteration'+str(i)+'_expm')
+           np.save("last_iterations/" + 'iteration' + str(i)+'_expm',x)
+
 def simulate(params, simparams, logger):
     """
     Setup for the simulated signal.
