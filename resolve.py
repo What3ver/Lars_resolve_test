@@ -139,10 +139,6 @@ def resolve(ms, imsize, cellsize, algorithm = 'ln-map', init_type_s = 'dirty',\
     if params.save:
         if not os.path.exists('general_output'):
             os.makedirs('general_output')
-            parameter.printparameters('general_output')
-            numparams.printparameters('general_output')
-            if simulating:
-                simparams.printparameters('general_output')
         if not os.path.exists('last_iterations'):
             os.makedirs('last_iterations')
         if not os.path.exists('m_reconstructions'):
@@ -155,6 +151,12 @@ def resolve(ms, imsize, cellsize, algorithm = 'ln-map', init_type_s = 'dirty',\
     else:
         logfile = None
     logger = M.Messenger(verbosity=2, add_timestamp=False, logfile=logfile)
+
+    if params.save:
+        params.printparameters('general_output')
+        numparams.printparameters('general_output')
+        if simulating:
+            simparams.printparameters('general_output')
 
     logger.header1('Starting Bayesian total intensity reconstruction.')
 
@@ -425,10 +427,10 @@ def mapfilter_I(d, m, pspec, N, R, logger, rho0, k_space, params, numparams):
 
         mold = m
         
-        #vorläufige Werte für u B und NU (für die Punktquellen), allgeimeiner und früher einfügen 
-        u = 1
+        #vorlaeufige Werte fuer u B und NU (fuer die Punktquellen), allgeimeiner und frueher einfuegen 
+        u = field(s_space) 
         B = 1.5
-        NU = 1
+        NU = 1.0
 
         if params.map_algo == 'sd':
             en = energy(args)
@@ -436,9 +438,11 @@ def mapfilter_I(d, m, pspec, N, R, logger, rho0, k_space, params, numparams):
             m = minimize(x0=m, alpha=numparams.map_alpha, \
                 tol=numparams.map_tol, clevel=numparams.map_clevel, \
                 limii=numparams.map_iter)[0]
+
         elif params.map_algo == 'up': #use pointsource NEW up definieren
             args = (j, S, M, rho0, B, NU,m,u)
             en = energy_up(args) 
+            print(en.egg_u(u)[0])
             minimize = nt.steepest_descent(en.egg_u,spam=callbackfunc_u,note=True)
             u = minimize(x0=u, alpha=numparams.map_alpha, \
                 tol=numparams.map_tol, clevel=numparams.map_clevel, \
@@ -723,34 +727,37 @@ class energy_up(object):
         self.NU = args[5]
         self.seff = args[6]
         self.ueff = args[7]
+        self.b = self.B-1
 
     def H(self,x,u):
         """
         """
+        I = exp(x)+exp(u)
         part1 = x.dot(self.S.inverse_times(x.weight(power = 0)))  / 2
         part2 = self.j.dot(self.A * (exp(x)+exp(u)))
-        part3 = (self.A * (exp(x)+exp(u))).dot(self.M(self.A * (exp(x)+exp(u)))) / 2
-        part4 = -(self.B-1).dot(u)-self.NU.dot(exp(-u)).
-        
+        part3 = self.A * I.dot(self.M(self.A * I)) / 2
+        part4 = -u.dot(self.b)-(exp(-u)).dot(self.NU) 
+
         return part1 - part2 + part3 - part4
     
     def gradH_s(self, x,u):
         """
         """
-    
+        
+        I = exp(x)+exp(u)
         temp1 = self.S.inverse_times(x)
         temp = -self.j * self.A * exp(x) + self.A* exp(x) * \
-            self.M(self.A * (exp(x)+exp(u))) + temp1
+            self.M(self.A * I) + temp1
     
         return temp
 
     def gradH_u(self, x,u):
         """
         """
-    
-        temp1 = self.B-1 - self.NU * exp(-u)
+        I = exp(x)+exp(u)
+        temp1 = self.b - self.NU * exp(-u)
         temp = -self.j * self.A * exp(u) + self.A* exp(u) * \
-            self.M(self.A * (exp(x)+exp(u))) + temp1
+            self.M(self.A * I) + temp1
     
         return temp
     
@@ -826,7 +833,7 @@ class parameters(object):
      
         f = open(place+'/resolve_parameters.txt','w')
         for name in self.para:
-            f.write('{0:10}: {1:10}'.format(name[0],name[1]) + '\n')
+            f.write('{0:15}: {1:15}'.format(name[0],name[1]) + '\n')
 
 class numparameters(object):
     
@@ -930,11 +937,11 @@ class numparameters(object):
         else:
            self.nrun = 8
 
-    def printparameters(self):
+    def printparameters(self,place):
      
         f = open(place+'/numparameters.txt','w')
         for name in self.para:
-            f.write('{0:10}: {1:10}'.format(name[0],name[1]) + '\n')
+            f.write('{0:15}: {1:15}'.format(name[0],name[1]) + '\n')
 
 class simparameters(object):
     
@@ -1008,11 +1015,11 @@ class simparameters(object):
         else:
            self.compact = False
 
-    def printparameters(self):
+    def printparameters(self,place):
      
-        f = open(place+'/numparameters.txt','w')
+        f = open(place+'/simparameters.txt','w')
         for name in self.para:
-            f.write('{0:10}: {1:10}'.format(name[0],name[1]) + '\n')         
+            f.write('{0:15}: {1:15}'.format(name[0],name[1]) + '\n')
 
 def make_dirtyimage(params, logger):
     
