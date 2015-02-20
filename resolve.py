@@ -464,13 +464,13 @@ def mapfilter_I(d, m, pspec, N, R, logger, rho0, k_space, params, numparams):
                     rho0 = rho0)
             elif params.map_algo == 'up':
                 save_results(exp(m.val+u.val), "map, iter #" + str(git), \
-                    "mu_reconstructions/" + params.save + "_expmu" + str(git), \
+                    "m_reconstructions/" + params.save + "_expmu" + str(git), \
                     rho0 = rho0)        
                 save_results(exp(m.val), "map, iter #" + str(git), \
                     "m_reconstructions/" + params.save + "_expm" + str(git), \
                     rho0 = rho0)
                 save_results(exp(u.val), "map, iter #" + str(git), \
-                    "u_reconstructions/" + params.save + "_expu" + str(git), \
+                    "m_reconstructions/" + params.save + "_expu" + str(git), \
                     rho0 = rho0)
 
         logger.header2("Computing the power spectrum.\n")
