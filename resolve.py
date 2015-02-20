@@ -1068,7 +1068,7 @@ def callbackfunc(x, i):
 def callbackfunc_u(x, i):
     
     if i%gcallback == 0:
-        print 'Callback at iteration' + str(i) +' of the point source reconstruction'
+        print 'Callback at point source iteration' + str(i) 
         
         if gsave:
            pl.figure()
@@ -1081,7 +1081,7 @@ def callbackfunc_u(x, i):
 def callbackfunc_m(x, i):
     
     if i%gcallback == 0:
-        print 'Callback at iteration' + str(i) +' of the point source reconstruction'
+        print 'Callback at extended source iteration' + str(i) 
         
         if gsave:
            pl.figure()
