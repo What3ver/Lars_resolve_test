@@ -1134,6 +1134,9 @@ def simulate(params, simparams, logger):
     # compact signal
     if simparams.compact:
         Ip = np.zeros((simparams.simpix,simparams.simpix))
+        if params.save:      
+            save_results(exp(I),'simulated extended signal',"general_output/" + \
+                params.save + '_expsimem')
         for i in range(simparams.nsources):
                Ip[np.random.randint(0,high=simparams.simpix),\
                np.random.randint(0,high=simparams.simpix)] = \
