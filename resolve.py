@@ -25,6 +25,7 @@ from time import time
 from subprocess import call
 
 #import necessary modules
+import scipy.stats as sc
 import pylab as pl
 import numpy as np
 from nifty import *
@@ -179,8 +180,10 @@ def resolve(ms, imsize, cellsize, algorithm = 'ln-map', init_type_s = 'dirty',\
         mtemp = field(s_space, target=s_space.get_codomain(), \
                       val=np.load('userimage.npy')/params.barea)
 
-    
-    rho0 = np.mean(mtemp.val[np.where(mtemp.val>=np.max(mtemp.val) / 4)])
+    if simulating:
+        rho0 = 1  
+    else
+        rho0 = np.mean(mtemp.val[np.where(mtemp.val>=np.max(mtemp.val) / 4)])
     logger.message('rho0: ' + str(rho0))
     if rho0 < 0:
         logger.warn('Monopole level of starting guess negative. Probably due \
@@ -233,7 +236,6 @@ def resolve(ms, imsize, cellsize, algorithm = 'ln-map', init_type_s = 'dirty',\
         save_results(np.exp(m_I.val),"exp(Starting guess)",\
             "m_reconstructions/" + params.save + "_expm0", rho0 = rho0)
 
-            
     # Begin: Start Filter *****************************************************
 
     if params.algorithm == 'ln-map':
@@ -430,7 +432,7 @@ def mapfilter_I(d, m, pspec, N, R, logger, rho0, k_space, params, numparams):
         #vorlaeufige Werte fuer u B und NU (fuer die Punktquellen), allgeimeiner und frueher einfuegen 
         u = field(s_space) 
         B = 1.5
-        NU = 1.0
+        NU = 0.01
 
         if params.map_algo == 'sd':
             en = energy(args)
@@ -446,7 +448,7 @@ def mapfilter_I(d, m, pspec, N, R, logger, rho0, k_space, params, numparams):
             minimize = nt.steepest_descent(en.egg_u,spam=callbackfunc_u,note=True)
             u = minimize(x0=u, alpha=numparams.map_alpha, \
                 tol=numparams.map_tol, clevel=numparams.map_clevel, \
-                limii=numparams.map_iter)[0]
+                limii=5*numparams.map_iter)[0]
             en.ueff = u
             minimize = nt.steepest_descent(en.egg_s,spam=callbackfunc_m,note=True)
             m = minimize(x0=m, alpha=numparams.map_alpha, \
@@ -1133,14 +1135,16 @@ def simulate(params, simparams, logger):
     
     # compact signal
     if simparams.compact:
-        Ip = np.zeros((simparams.simpix,simparams.simpix))
         if params.save:      
             save_results(exp(I),'simulated extended signal',"general_output/" + \
-                params.save + '_expsimem')
+                params.save + '_expsimIext')
+        B = sc.invgamma.rvs(0.5, size = simparams.nsources )
+        Ip = np.zeros((simparams.simpix,simparams.simpix))
         for i in range(simparams.nsources):
                Ip[np.random.randint(0,high=simparams.simpix),\
                np.random.randint(0,high=simparams.simpix)] = \
-               np.random.random() * simparams.pfactor * np.max(exp(I))  
+               B[i]*np.max(I)/6.0
+              # np.log((np.random.random()+0.000001) * simparams.pfactor) + np.max(I)  
         I += Ip           
    
     if params.save:      
